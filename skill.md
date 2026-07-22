@@ -25,10 +25,10 @@ OpenAI 兼容 API，推理速度 ~290 t/s GPU。
 ### 启动
 
 ```powershell
-Start-Process -NoNewWindow -FilePath "$env:USERPROFILE\llama-cpp\llama-server.exe" `
+Start-Process -NoNewWindow -FilePath "D:\tools\MiniCPM-V\llama-server.exe" `
   -ArgumentList "-m", "MiniCPM-V-4_6-Q4_K_M.gguf", "--mmproj", "mmproj-MiniCPM-V-4_6-f16.gguf", `
   "--port", "8080", "--host", "127.0.0.1", "-ngl", "99" `
-  -WorkingDirectory "$env:USERPROFILE\llama-cpp"
+  -WorkingDirectory "D:\tools\MiniCPM-V"
 ```
 
 ### 健康检查
