@@ -1,6 +1,7 @@
 ---
 name: local-vision
-description: 本地视觉增强。三引擎视觉理解（MiniCPM-V本地/GLM-4.6V云端/Tesseract OCR），为纯文本模型提供外置眼睛。适用：读图、OCR、截图理解、产品图分析。
+category: 开发与工具
+description: 本地视觉增强。四引擎视觉理解（MiniCPM-V粗扫/Qwen3-VL-8B精读/GLM-4.6V云端/Tesseract OCR），为纯文本模型提供外置眼睛。适用：读图、OCR、截图理解、产品图分析。
 ---
 
 # 本地视觉增强
@@ -12,9 +13,12 @@ DeepSeek v4 Pro API 不能直接看图片。本 skill 用外部视觉模型做�
 ```
 需要做什么？
 ├── 提取图片中的文字（清晰印刷体）→ Tesseract OCR（<1s，不占显存）
-├── 理解图片内容/场景/产品 → MiniCPM-V（首选，免费本地 2-10s）
-└── MiniCPM-V 未启动且不想等 → GLM-4.6V（云端，3-10s，限速）
+├── 理解图片内容/场景/产品 → MiniCPM-V 4.6（首选粗扫，免费本地 2-10s）
+├── 精确 OCR / 空间关系 / 时间戳定位 / 复杂推理 → Qwen3-VL-8B（精读复核，本地 5-20s）
+└── 显存被 ComfyUI/SD 占满，或两本地引擎都不想启动 → GLM-4.6V（云端，3-10s，限速）
 ```
+
+**分工原则：** 批量图/全片扫用 MiniCPM-V（轻快），候选结果复核用 Qwen3-VL（准）。两模型同目录不同端口，API 格式完全相同。
 
 **NOT for：** 生成图片 → ComfyUI / aigoapi gpt-image-2
 
@@ -100,7 +104,33 @@ npx kill-port 8080
 | 冲突 | 不能和 ComfyUI/SD/ACE Step 同时开 |
 | 编码 | 中文输出在终端可能乱码 → 用文件保存结果再 Read |
 
-## 引擎二：GLM-4.6V（云端备选）
+## 引擎二：Qwen3-VL-8B（本地精读）
+
+MiniCPM-V 粗扫后的复核引擎。强项：精确 OCR、空间关系、时间戳定位、复杂推理。GGUF Q4_K_M + mmproj F16（视觉不量化）。
+
+### 启动
+
+```powershell
+Start-Process -NoNewWindow -FilePath "D:\tools\MiniCPM-V\llama-server.exe" `
+  -ArgumentList "-m", "Qwen3VL-8B-Instruct-Q4_K_M.gguf", "--mmproj", "mmproj-Qwen3VL-8B-Instruct-F16.gguf", `
+  "--port", "8765", "--host", "127.0.0.1", "-ngl", "99" `
+  -WorkingDirectory "D:\tools\MiniCPM-V"
+```
+
+### 健康检查 / API 调用 / 关闭
+
+与引擎一完全相同，端口换 **8765**。健康检查 `curl http://127.0.0.1:8765/health`；关闭 `npx kill-port 8765`。
+
+### 约束
+
+| 维度 | 值 |
+|------|-----|
+| 显存 | ~7GB |
+| 延迟 | 单图 5-20s |
+| 冲突 | 不能和 ComfyUI/SD/ACE Step/MiniCPM-V 同时开（16G 装不下双 VLM） |
+| 编码 | 中文输出在终端可能乱码 → 用文件保存结果再 Read |
+
+## 引擎三：GLM-4.6V（云端备选）
 
 智谱云端视觉模型，不占显存，但有限速。
 
@@ -121,11 +151,11 @@ response = client.chat.completions.create(
 ```
 
 **何时用 GLM：**
-- MiniCPM-V 未启动且不想等
-- 显存紧张（ComfyUI/SD 在跑）
-- 需要更多视觉推理能力
+- 显存被 ComfyUI/SD 占满（本地双引擎都起不来）
+- 不想等本地模型加载
+- 需要更多视觉推理能力且 Qwen3-VL 结果仍不够
 
-## 引擎三：Tesseract OCR（轻量文字提取）
+## 引擎四：Tesseract OCR（轻量文字提取）
 
 不占显存，适合清晰印刷文字。
 
@@ -155,6 +185,7 @@ print(pytesseract.image_to_string(Image.open(sys.argv[1]), lang='chi_sim+eng'))
 
 | 工具 | 位置 | 角色 | 代价 |
 |------|------|------|------|
-| MiniCPM-V 4.6 | :8080 | 本地主力 | 2.5GB 显存 |
-| GLM-4.6V | 智谱云端 | 备选 | API 限速 |
+| MiniCPM-V 4.6 | :8080 | 本地粗扫主力 | 2.5GB 显存 |
+| Qwen3-VL-8B | :8765 | 本地精读复核（OCR/空间/推理） | 7GB 显存 |
+| GLM-4.6V | 智谱云端 | 备选（显存满时） | API 限速 |
 | Tesseract OCR | C:\Program Files\Tesseract-OCR | 文字提取 | 免费 |
